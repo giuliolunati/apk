@@ -20,7 +20,6 @@
       android:text="Settings"
       android:onClick="startSettings"
       android:layout_centerHorizontal="true" />
--->
 
   <Button
       android:layout_width="wrap_content"
@@ -53,5 +52,13 @@
       android:text="(Re)install System"
       android:onClick="installSystem"
       android:layout_centerHorizontal="true" />
+-->
 
+  <Button
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:id="@+id/exit"
+      android:text="Quit"
+      android:onClick="quit"
+      android:layout_centerHorizontal="true" />
 </LinearLayout>

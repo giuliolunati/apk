@@ -1,7 +1,7 @@
 <?xml version='1.0'?>
 <manifest xmlns:android='http://schemas.android.com/apk/res/android' package='giuliolunati.baseluna'>
-    <uses-sdk android:targetSdkVersion="28" />
-    <uses-sdk android:minSdkVersion="16" />
+    <uses-sdk android:targetSdkVersion="29" />
+    <uses-sdk android:minSdkVersion="23" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <application android:label='Base Luna'>
@@ -11,6 +11,6 @@
                 <action android:name='android.intent.action.MAIN'/>
              </intent-filter>
         </activity>
-        <service android:name=".Server" />
+        <!--service android:name=".Server" /-->
     </application>
 </manifest>

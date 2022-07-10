@@ -1,0 +1,265 @@
+# HELP
+
+function helpme { echo "
+ARGS: [TARGET ...]
+TARGET:  [dirty] apk | clean | keystore|ks
+  apk:       update APK
+  clean:     remove artifacts
+  dirty apk: UNSAFE: recompile only changed sources
+  keystore
+  | ks:      create keystore if doesn't exist
+"; exit 1
+}
+
+
+# USER CONFIG
+
+PACKAGE=giuliolunati.baseluna
+APK=baseluna.apk
+KEYSTORE=baseluna.ks
+PASSWORD=`cat baseluna.pw`
+SRC=java #e.g. java, src
+JAVA_VER=1.8
+CLASSPATH="" # e.g. "libs:path/to/my-lib.jar"
+ANDROID_JAR=../android-28.6-9.0.jar
+# see https://androidsdkmanager.azurewebsites.net/SDKPlatform
+
+# END USER CONFIG
+
+SRC=${SRC%/}
+R_java=gen/$(echo $PACKAGE|sed 's=\.=/=g')/R.java
+I_BOOTCLASSPATH="-I $ANDROID_JAR"
+OPT_BOOTCLASSPATH="-bootclasspath $ANDROID_JAR"
+if [ $CLASSPATH ]; then
+    SPLIT_CLASSPATH="`echo $CLASSPATH | sed 's/:/ /g'`"
+fi
+
+
+# FUNCTIONS
+
+function make_apk {
+  make_unaligned_apk; make_keystore
+  newer "bin/$APK" bin/unaligned.apk "$KEYSTORE" && return
+
+  echo "ALIGNING unaligned.apk ..."
+  zipalign -f 4 \
+      bin/unaligned.apk \
+      bin/$APK \
+  || fail "FAILED ALIGNING"
+  echo " OK."
+
+  echo "SIGNING bin/$APK ..."
+  $APKSIGNER_CMD bin/$APK || fail "FAILED SIGNING"
+  echo " OK."
+
+  echo "BUILT APP bin/$APK"
+}
+
+function check_files { # files ...
+  for i in "$@"; do
+    name=`eval echo "$""$i"`
+    [ -e $name ] || fail "* Please provide $i"
+  done
+}
+
+function check_tools { # tools ...
+  while [ "$1" ]; do
+    [ `which $1` ] || fail "* Please install $1"
+    shift
+  done
+}
+
+function check_vars { # vars ...
+  for i in "$@"; do
+    name=`eval echo "$""$i"`
+    [ $name ] || fail "* Please set $i"
+  done
+}
+
+function fail { echo "$1"; exit 1; }
+
+function make_classes {
+  make_R_java;
+  JAVAS=`find java/ gen/ -name \*.java`
+  CLASSPATH+=" obj"
+  SOURCES=""
+  uptodate="true"
+  for j in $JAVAS; do
+    o=${j#gen/}
+    [ "$o" = "$j" ] && o=${o#$SRC/} # $j=gen/...
+    o=obj/${o%java}class
+    if [ "$j" -nt "$o" ]; then
+      uptodate=""
+      if [ $DIRTYCOMPILE ]; then
+        SOURCES="$j $SOURCES"
+        rm -f "$o"
+      fi
+    fi
+  done
+  [ "$uptodate" ] && return
+
+  if [ $DIRTYCOMPILE ]; then
+    CLASSPATH+=":obj"
+    echo "DIRTY COMPILING $SOURCES ..."
+  else
+    SOURCES="$JAVAS"
+    echo "COMPILING ALL SOURCES ..."
+  fi
+
+  [ "$CLASSPATH" ] && OPT_CLASSPATH="-cp $CLASSPATH"
+  $JAVAC -d obj \
+    $SOURCES \
+    $OPT_BOOTCLASSPATH \
+    $OPT_CLASSPATH \
+    -source $JAVA_VER -target $JAVA_VER \
+    || fail "FAILED COMPILING *.class"
+  echo " OK."
+}
+
+function make_classes_dex {
+  make_classes;
+  newer bin/classes.dex obj/ && return
+
+  echo "COMPILING classes.dex ..."
+  dalvik-exchange --dex --output=bin/classes.dex \
+    obj \
+    $SPLIT_CLASSPATH \
+    || fail "FAILED COMPILING classes.dex"
+  echo " OK."
+  # If you have the fail UNEXPECTED TOP-LEVEL EXCEPTION, 
+  # it can be because you use old build tools
+  # and DX try to translate java 1.7 rather than 1.8.
+  # To solve the problem, you have to specify 1.7 java version in the previous javac command
+}
+
+function make_clean {
+  rm -rf gen/* bin/* obj/*
+}
+
+function make_keystore {
+  [ -e "$KEYSTORE" ] && return
+  echo "MAKING $KEYSTORE..."
+  keytool -genkey -alias dummy -keystore $KEYSTORE -keyalg RSA -keysize 2048 -validity 10000 -v
+}
+
+function make_R_java {
+  newer $R_java AndroidManifest.xml res/ && return
+
+  echo "MAKING R.java ..."
+  aapt package -f -m -J gen \
+    -M AndroidManifest.xml \
+    -S res \
+    $I_BOOTCLASSPATH \
+    || fail "FAILED MAKING R.java"
+  echo " OK."
+}
+
+function make_unaligned_apk {
+  make_classes_dex
+  newer bin/unaligned.apk \
+    AndroidManifest.xml \
+    assets/ \
+    res/ \
+    bin/classes.dex \
+  && return
+
+  echo "BUILDING unaligned.apk ..."
+  aapt package -f -m \
+    -F bin/unaligned.apk \
+    -M AndroidManifest.xml \
+    -A assets \
+    -S res \
+    $I_BOOTCLASSPATH \
+    || fail "*** 'aapt package 'FAILED ***"
+
+  cd bin # "classes.dex" must be in current dir 
+  aapt add unaligned.apk classes.dex > /dev/null\
+  || fail "*** 'aapt add 'FAILED ***"
+  cd ..
+
+  echo " OK."
+}
+
+function newer {
+  t="$1"; shift
+  for i in "$@"; do
+    if [ -f "$i" ]; then
+      [ "$t" -ot "$i" ] && return 1
+    elif [ -d "$i" ]; then
+      if ! newer "$t" "$i"/*; then return 1; fi
+    fi
+  done
+  return 0
+}
+
+
+# MAIN
+
+echo "CHECKING SYSTEM ..."
+
+if [[ $HOME =~ com.termux/files/ ]]
+then TERMUX=yes; else TERMUX=""; fi
+
+check_vars KEYSTORE ANDROID_JAR
+check_tools aapt apksigner zipalign curl
+[ -f "$KEYSTORE" ] || check_tools keytool
+
+tmp=`apksigner -h 2>&1 | head -n 1`
+if echo $tmp | grep password > /dev/null
+then # old Termux apksigner
+  if [ "$PASSWORD" ]
+  then OPT_PASSWORD="-p $PASSWORD"
+  fi
+  APKSIGNER_CMD="apksigner $OPT_PASSWORD $KEYSTORE bin/unaligned.apk"
+elif echo $tmp | grep -i usage > /dev/null
+then # standard apksigner
+  if [ "$PASSWORD" ]
+  then OPT_PASSWORD="--ks-pass pass:$PASSWORD"
+  fi
+  APKSIGNER_CMD="apksigner sign $OPT_PASSWORD --ks $KEYSTORE"
+else # unknown/broken apksigner
+    fail "*** this version of apksigner is unsupported/broken\
+    In Termux you can try old version:
+    http://termux.net/dists/stable/main/binary-all/apksigner_0.7-2_all.deb"
+fi
+
+for n in dalvik-exchange dx; do
+  DX=`which $n` || continue
+  [ $DX ] && break
+done
+[ $DX ] || fail "* Please install dalvik-exchange or dx"
+if [[ $DX =~ dx$ ]]
+then
+    if $DX -h 2>&1 |grep -- --dex >/dev/null;     then :
+    else fail "* Please install dalvik-exchange"
+    fi
+fi
+
+for n in javac ecj; do
+  JAVAC=`which $n` || continue
+  [ $JAVAC ] && break
+done
+[ $JAVAC ] || fail "* Please install javac or ecj"
+
+[ -f $ANDROID_JAR ] \
+|| check_files $ANDROID_JAR
+
+for i in assets bin gen obj res; do 
+  if [[ ! -e "$i" ]]
+  then mkdir -p "$i"
+  fi
+done
+
+echo " OK." # System checked
+
+[ "$1" ] || helpme
+for i in "$@"; do case "$i" in
+  apk) make_apk ;;
+  clean) make_clean ;;
+  dirty) DIRTYCOMPILE="true" ;;
+  ks|keystore) rm -f "$KEYSTORE"; make_keystore ;;
+  *) helpme ;;
+esac; done
+
+
+# vim: set syn=bash et sw=2:

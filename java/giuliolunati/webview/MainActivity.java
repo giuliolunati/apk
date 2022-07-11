@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.WebResourceResponse;
@@ -39,12 +40,17 @@ public class MainActivity extends Activity
   {
     super.onCreate(savedInstanceState);
     setContentView(R.layout.main);
+    WebView browser = (WebView) findViewById(R.id.webview);
+    // map assets/ and res/ to https://appassets.androidplatform.net
     final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
       .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
       .addPathHandler("/res/", new WebViewAssetLoader.ResourcesPathHandler(this))
       .build();
-    WebView browser = (WebView) findViewById(R.id.webview);
     browser.setWebViewClient(new LocalContentWebViewClient(assetLoader));
+    // enable javascript
+    WebSettings websettings= browser.getSettings();
+    websettings.setJavaScriptEnabled(true);
+    // load index
     browser.loadUrl("https://appassets.androidplatform.net/assets/index.html");
   }
   public void quit(View v) { System.exit(0); } 

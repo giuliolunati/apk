@@ -139,7 +139,11 @@ function make_clean {
 function make_keystore {
   [ -e "$KEYSTORE" ] && return
   echo "MAKING $KEYSTORE..."
-  keytool -genkey -alias dummy -keystore $KEYSTORE -keyalg RSA -keysize 2048 -validity 10000 -v
+  if [ "$PASSWORD" ]
+  then OPT_PASSWORD="-storepass $PASSWORD"
+  else OPT_PASSWORD=""
+  fi
+  keytool -genkey -alias dummy -keystore $KEYSTORE $OPT_PASSWORD -keyalg RSA -keysize 2048 -validity 10000 -v
 }
 
 function make_R_java {
@@ -209,12 +213,14 @@ if echo $tmp | grep password > /dev/null
 then # old Termux apksigner
   if [ "$PASSWORD" ]
   then OPT_PASSWORD="-p $PASSWORD"
+  else OPT_PASSWORD=""
   fi
   APKSIGNER_CMD="apksigner $OPT_PASSWORD $KEYSTORE bin/unaligned.apk"
 elif echo $tmp | grep -i usage > /dev/null
 then # standard apksigner
   if [ "$PASSWORD" ]
   then OPT_PASSWORD="--ks-pass pass:$PASSWORD"
+  else OPT_PASSWORD=""
   fi
   APKSIGNER_CMD="apksigner sign $OPT_PASSWORD --ks $KEYSTORE"
 else # unknown/broken apksigner

@@ -133,7 +133,12 @@ function make_classes_dex {
 }
 
 function make_clean {
+  make_clean_assets
   rm -rf gen/* bin/* obj/*
+}
+
+function make_clean_assets {
+  rm -rf assets/*~
 }
 
 function make_keystore {
@@ -159,6 +164,7 @@ function make_R_java {
 }
 
 function make_unaligned_apk {
+  make_clean_assets
   make_classes_dex
   newer bin/unaligned.apk \
     AndroidManifest.xml \

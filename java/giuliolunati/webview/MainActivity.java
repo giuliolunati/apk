@@ -1,4 +1,4 @@
-package giuliolunati.baseluna;
+package giuliolunati.webview;
 
 import android.app.Activity;
 import android.os.Bundle;

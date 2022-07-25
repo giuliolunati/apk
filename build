@@ -2,10 +2,11 @@
 
 function helpme { echo "
 ARGS: [TARGET ...]
-TARGET:  [dirty] apk | clean | keystore|ks
+TARGET:  [dirty] apk | clean | install | keystore|ks
   apk:       update APK
   clean:     remove artifacts
   dirty apk: UNSAFE: recompile only changed sources
+  install;   install APK
   keystore
   | ks:      create keystore if doesn't exist
 "; exit 1
@@ -141,6 +142,12 @@ function make_clean_assets {
   rm -rf assets/*~
 }
 
+function make_install {
+  [ -f "bin/$APK" ] || make_apk
+  echo "INSTALLING bin/$APK..."
+  sudo pm install "bin/$APK"
+}
+
 function make_keystore {
   [ -e "$KEYSTORE" ] && return
   echo "MAKING $KEYSTORE..."
@@ -269,6 +276,7 @@ for i in "$@"; do case "$i" in
   apk) make_apk ;;
   clean) make_clean ;;
   dirty) DIRTYCOMPILE="true" ;;
+  install) make_install ;;
   ks|keystore) rm -f "$KEYSTORE"; make_keystore ;;
   *) helpme ;;
 esac; done

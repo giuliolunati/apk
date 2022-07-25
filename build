@@ -15,25 +15,11 @@ TARGET:  [dirty] apk | clean | install | keystore|ks
 
 # USER CONFIG
 
-PACKAGE=giuliolunati.baseluna
-APK=baseluna.apk
-KEYSTORE=baseluna.ks
-PASSWORD=`cat baseluna.pw`
 SRC=java #e.g. java, src
 JAVA_VER=1.8
 CLASSPATH="" # e.g. "libs:path/to/my-lib.jar"
 ANDROID_JAR=../android-28.6-9.0.jar
 # see https://androidsdkmanager.azurewebsites.net/SDKPlatform
-
-# END USER CONFIG
-
-SRC=${SRC%/}
-R_java=gen/$(echo $PACKAGE|sed 's=\.=/=g')/R.java
-I_BOOTCLASSPATH="-I $ANDROID_JAR"
-OPT_BOOTCLASSPATH="-bootclasspath $ANDROID_JAR"
-if [ $CLASSPATH ]; then
-    SPLIT_CLASSPATH="`echo $CLASSPATH | sed 's/:/ /g'`"
-fi
 
 
 # FUNCTIONS
@@ -75,6 +61,11 @@ function check_vars { # vars ...
     name=`eval echo "$""$i"`
     [ $name ] || fail "* Please set $i"
   done
+}
+
+function extract_name {
+  grep -o 'package=[^ >]*' | head -n 1 \
+  | sed "s/package=['\"]\\?//; s/['\"]$//"
 }
 
 function fail { echo "$1"; exit 1; }
@@ -159,7 +150,7 @@ function make_keystore {
 }
 
 function make_R_java {
-  newer $R_java AndroidManifest.xml res/ && return
+  newer gen/"$PATH_NAME"/R.java AndroidManifest.xml res/ && return
 
   echo "MAKING R.java ..."
   aapt package -f -m -J gen \
@@ -211,6 +202,19 @@ function newer {
 
 
 # MAIN
+
+NAME=$(extract_name < AndroidManifest.xml)
+APK="$NAME".apk
+KEYSTORE="$NAME".ks
+PASSWORD=`cat "$NAME".pw`
+SRC=${SRC%/}
+PATH_NAME=$(echo $NAME|sed 's=\.=/=g')
+I_BOOTCLASSPATH="-I $ANDROID_JAR"
+OPT_BOOTCLASSPATH="-bootclasspath $ANDROID_JAR"
+if [ $CLASSPATH ]; then
+    SPLIT_CLASSPATH="`echo $CLASSPATH | sed 's/:/ /g'`"
+fi
+
 
 echo "CHECKING SYSTEM ..."
 
